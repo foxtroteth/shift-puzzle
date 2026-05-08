@@ -1,0 +1,656 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SHIFT — Puzzle Game</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Bebas+Neue&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #0a0a0f;
+    --surface: #13131a;
+    --border: #2a2a3a;
+    --accent: #e8ff47;
+    --accent2: #ff4757;
+    --text: #f0f0f0;
+    --muted: #555570;
+    --tile-bg: #1e1e2e;
+    --tile-hover: #252535;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Space Mono', monospace;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+  }
+
+  /* Background grid */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(232,255,71,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(232,255,71,0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+  }
+
+  .wrapper {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 28px;
+    padding: 20px;
+  }
+
+  header {
+    text-align: center;
+  }
+
+  .title {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: clamp(52px, 10vw, 80px);
+    letter-spacing: 0.15em;
+    color: var(--accent);
+    line-height: 1;
+    text-shadow: 0 0 40px rgba(232,255,71,0.3);
+  }
+
+  .subtitle {
+    font-size: 11px;
+    color: var(--muted);
+    letter-spacing: 0.3em;
+    text-transform: uppercase;
+    margin-top: 4px;
+  }
+
+  /* Stats bar */
+  .stats {
+    display: flex;
+    gap: 32px;
+    align-items: center;
+  }
+
+  .stat {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+  }
+
+  .stat-label {
+    font-size: 9px;
+    color: var(--muted);
+    letter-spacing: 0.25em;
+    text-transform: uppercase;
+  }
+
+  .stat-value {
+    font-size: 28px;
+    font-weight: 700;
+    color: var(--text);
+    line-height: 1;
+    transition: color 0.2s;
+  }
+
+  .stat-value.pop {
+    color: var(--accent);
+    animation: pop 0.3s ease;
+  }
+
+  @keyframes pop {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.3); }
+    100% { transform: scale(1); }
+  }
+
+  .divider {
+    width: 1px;
+    height: 36px;
+    background: var(--border);
+  }
+
+  /* Size selector */
+  .size-selector {
+    display: flex;
+    gap: 8px;
+  }
+
+  .size-btn {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--muted);
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.1em;
+    padding: 6px 14px;
+    cursor: pointer;
+    transition: all 0.15s;
+    text-transform: uppercase;
+  }
+
+  .size-btn:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+
+  .size-btn.active {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: var(--bg);
+    font-weight: 700;
+  }
+
+  /* Board */
+  .board-wrapper {
+    position: relative;
+  }
+
+  .board {
+    display: grid;
+    gap: 6px;
+    padding: 12px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    position: relative;
+  }
+
+  .board::after {
+    content: '';
+    position: absolute;
+    inset: -1px;
+    border: 1px solid var(--accent);
+    opacity: 0.15;
+    pointer-events: none;
+  }
+
+  .tile {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--tile-bg);
+    border: 1px solid var(--border);
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: clamp(20px, 5vw, 36px);
+    color: var(--text);
+    cursor: pointer;
+    transition: all 0.12s ease;
+    user-select: none;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .tile::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(135deg, rgba(255,255,255,0.05) 0%, transparent 60%);
+    pointer-events: none;
+  }
+
+  .tile:hover:not(.empty) {
+    background: var(--tile-hover);
+    border-color: var(--accent);
+    color: var(--accent);
+    transform: scale(0.96);
+  }
+
+  .tile.empty {
+    background: transparent;
+    border-color: transparent;
+    cursor: default;
+  }
+
+  .tile.correct {
+    background: rgba(232,255,71,0.08);
+    border-color: rgba(232,255,71,0.3);
+    color: var(--accent);
+  }
+
+  .tile.slide {
+    animation: slide-in 0.12s ease;
+  }
+
+  @keyframes slide-in {
+    from { opacity: 0.5; transform: scale(0.92); }
+    to { opacity: 1; transform: scale(1); }
+  }
+
+  /* Controls */
+  .controls {
+    display: flex;
+    gap: 10px;
+  }
+
+  .btn {
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    padding: 10px 24px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text);
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+
+  .btn:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+
+  .btn.primary {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: var(--bg);
+    font-weight: 700;
+  }
+
+  .btn.primary:hover {
+    background: #d4eb3a;
+    border-color: #d4eb3a;
+    color: var(--bg);
+  }
+
+  /* Win screen */
+  .win-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(10,10,15,0.92);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.4s ease;
+    gap: 16px;
+  }
+
+  .win-overlay.show {
+    opacity: 1;
+    pointer-events: all;
+  }
+
+  .win-title {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: clamp(64px, 15vw, 120px);
+    color: var(--accent);
+    letter-spacing: 0.1em;
+    text-shadow: 0 0 60px rgba(232,255,71,0.5);
+    animation: win-pulse 1.5s ease infinite;
+  }
+
+  @keyframes win-pulse {
+    0%, 100% { text-shadow: 0 0 60px rgba(232,255,71,0.5); }
+    50% { text-shadow: 0 0 100px rgba(232,255,71,0.9); }
+  }
+
+  .win-stats {
+    font-size: 13px;
+    color: var(--muted);
+    letter-spacing: 0.2em;
+    text-align: center;
+    line-height: 2;
+  }
+
+  .win-stats span {
+    color: var(--text);
+  }
+
+  /* Confetti particles */
+  .particle {
+    position: fixed;
+    width: 8px;
+    height: 8px;
+    pointer-events: none;
+    z-index: 99;
+    animation: fall linear forwards;
+  }
+
+  @keyframes fall {
+    from { transform: translateY(-20px) rotate(0deg); opacity: 1; }
+    to { transform: translateY(110vh) rotate(720deg); opacity: 0; }
+  }
+
+  /* Best score indicator */
+  .best-badge {
+    font-size: 9px;
+    letter-spacing: 0.2em;
+    color: var(--accent);
+    text-transform: uppercase;
+    opacity: 0;
+    transition: opacity 0.3s;
+    text-align: center;
+  }
+
+  .best-badge.show { opacity: 1; }
+
+  /* Hint */
+  .hint {
+    font-size: 10px;
+    color: var(--muted);
+    letter-spacing: 0.15em;
+    text-align: center;
+  }
+</style>
+</head>
+<body>
+
+<div class="wrapper">
+  <header>
+    <div class="title">SHIFT</div>
+    <div class="subtitle">Sliding Tile Puzzle</div>
+  </header>
+
+  <div class="stats">
+    <div class="stat">
+      <div class="stat-label">Moves</div>
+      <div class="stat-value" id="moves">0</div>
+    </div>
+    <div class="divider"></div>
+    <div class="stat">
+      <div class="stat-label">Time</div>
+      <div class="stat-value" id="timer">0:00</div>
+    </div>
+    <div class="divider"></div>
+    <div class="stat">
+      <div class="stat-label">Best</div>
+      <div class="stat-value" id="best">—</div>
+    </div>
+  </div>
+
+  <div class="size-selector">
+    <button class="size-btn active" onclick="setSize(3)" id="btn-3">3×3</button>
+    <button class="size-btn" onclick="setSize(4)" id="btn-4">4×4</button>
+    <button class="size-btn" onclick="setSize(5)" id="btn-5">5×5</button>
+  </div>
+
+  <div class="board-wrapper">
+    <div class="board" id="board"></div>
+  </div>
+
+  <div class="controls">
+    <button class="btn primary" onclick="newGame()">New Game</button>
+    <button class="btn" onclick="showSolution()">Solve</button>
+  </div>
+
+  <div class="best-badge" id="best-badge">★ New Best Score!</div>
+  <div class="hint">Click a tile adjacent to the empty space to move it</div>
+</div>
+
+<!-- Win overlay -->
+<div class="win-overlay" id="win-overlay">
+  <div class="win-title">SOLVED!</div>
+  <div class="win-stats" id="win-stats"></div>
+  <div style="display:flex;gap:10px;margin-top:8px">
+    <button class="btn primary" onclick="newGame();closeWin()">Play Again</button>
+    <button class="btn" onclick="closeWin()">View Board</button>
+  </div>
+</div>
+
+<script>
+  let size = 3;
+  let tiles = [];
+  let emptyPos = 0;
+  let moves = 0;
+  let seconds = 0;
+  let timerInterval = null;
+  let started = false;
+  let bestScores = {};
+  let solving = false;
+
+  function setSize(n) {
+    size = n;
+    document.querySelectorAll('.size-btn').forEach(b => b.classList.remove('active'));
+    document.getElementById('btn-' + n).classList.add('active');
+    newGame();
+  }
+
+  function newGame() {
+    solving = false;
+    clearInterval(timerInterval);
+    started = false;
+    moves = 0;
+    seconds = 0;
+    updateMoves();
+    updateTimer();
+    document.getElementById('best-badge').classList.remove('show');
+    closeWin();
+    generatePuzzle();
+    renderBoard();
+  }
+
+  function generatePuzzle() {
+    const total = size * size;
+    tiles = Array.from({length: total}, (_, i) => i);
+    // Shuffle with guarantee of solvability
+    do { shuffleTiles(); } while (!isSolvable() || isSolved());
+    emptyPos = tiles.indexOf(0);
+  }
+
+  function shuffleTiles() {
+    for (let i = tiles.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [tiles[i], tiles[j]] = [tiles[j], tiles[i]];
+    }
+  }
+
+  function isSolvable() {
+    const arr = tiles.filter(t => t !== 0);
+    let inv = 0;
+    for (let i = 0; i < arr.length; i++)
+      for (let j = i + 1; j < arr.length; j++)
+        if (arr[i] > arr[j]) inv++;
+    const emptyRow = Math.floor(tiles.indexOf(0) / size);
+    if (size % 2 === 1) return inv % 2 === 0;
+    const rowFromBottom = size - emptyRow;
+    return (rowFromBottom % 2 === 0) ? (inv % 2 === 1) : (inv % 2 === 0);
+  }
+
+  function isSolved() {
+    return tiles.every((t, i) => t === (i === tiles.length - 1 ? 0 : i + 1));
+  }
+
+  function renderBoard() {
+    const board = document.getElementById('board');
+    const tileSize = size === 3 ? 100 : size === 4 ? 80 : 65;
+    board.style.gridTemplateColumns = `repeat(${size}, ${tileSize}px)`;
+    board.innerHTML = '';
+
+    tiles.forEach((val, idx) => {
+      const tile = document.createElement('div');
+      tile.className = 'tile' + (val === 0 ? ' empty' : '');
+      tile.style.width = tileSize + 'px';
+      tile.style.height = tileSize + 'px';
+      if (val !== 0) {
+        tile.textContent = val;
+        // Highlight correctly placed tiles
+        if (val === idx + 1) tile.classList.add('correct');
+        tile.onclick = () => tryMove(idx);
+      }
+      board.appendChild(tile);
+    });
+  }
+
+  function tryMove(idx) {
+    if (solving) return;
+    const empty = tiles.indexOf(0);
+    const row = Math.floor(idx / size), col = idx % size;
+    const erow = Math.floor(empty / size), ecol = empty % size;
+
+    const adjacent =
+      (Math.abs(row - erow) === 1 && col === ecol) ||
+      (Math.abs(col - ecol) === 1 && row === erow);
+
+    if (!adjacent) return;
+
+    if (!started) {
+      started = true;
+      timerInterval = setInterval(() => { seconds++; updateTimer(); }, 1000);
+    }
+
+    [tiles[idx], tiles[empty]] = [tiles[empty], tiles[idx]];
+    moves++;
+    updateMoves();
+    renderBoard();
+
+    // Add slide animation to moved tile
+    const movedEl = document.getElementById('board').children[empty];
+    if (movedEl) {
+      movedEl.classList.add('slide');
+      setTimeout(() => movedEl.classList.remove('slide'), 150);
+    }
+
+    if (isSolved()) {
+      clearInterval(timerInterval);
+      setTimeout(showWin, 300);
+    }
+  }
+
+  function updateMoves() {
+    const el = document.getElementById('moves');
+    el.textContent = moves;
+    el.classList.remove('pop');
+    void el.offsetWidth;
+    if (moves > 0) el.classList.add('pop');
+  }
+
+  function updateTimer() {
+    const m = Math.floor(seconds / 60);
+    const s = seconds % 60;
+    document.getElementById('timer').textContent = `${m}:${s.toString().padStart(2,'0')}`;
+  }
+
+  function showWin() {
+    const key = `best_${size}`;
+    const prev = bestScores[key];
+    const isNew = !prev || moves < prev;
+    if (isNew) {
+      bestScores[key] = moves;
+      document.getElementById('best').textContent = moves;
+      document.getElementById('best-badge').classList.add('show');
+    }
+
+    document.getElementById('win-stats').innerHTML =
+      `Solved in <span>${moves} moves</span> and <span>${formatTime()}</span><br>` +
+      `Grid size: <span>${size}×${size}</span> — Best: <span>${bestScores[key] || moves} moves</span>`;
+
+    document.getElementById('win-overlay').classList.add('show');
+    spawnConfetti();
+  }
+
+  function formatTime() {
+    const m = Math.floor(seconds / 60);
+    const s = seconds % 60;
+    return m > 0 ? `${m}m ${s}s` : `${s}s`;
+  }
+
+  function closeWin() {
+    document.getElementById('win-overlay').classList.remove('show');
+  }
+
+  function spawnConfetti() {
+    const colors = ['#e8ff47', '#ff4757', '#ffffff', '#00d2d3', '#ff9f43'];
+    for (let i = 0; i < 60; i++) {
+      setTimeout(() => {
+        const p = document.createElement('div');
+        p.className = 'particle';
+        p.style.left = Math.random() * 100 + 'vw';
+        p.style.background = colors[Math.floor(Math.random() * colors.length)];
+        p.style.width = (Math.random() * 8 + 4) + 'px';
+        p.style.height = (Math.random() * 8 + 4) + 'px';
+        p.style.borderRadius = Math.random() > 0.5 ? '50%' : '0';
+        p.style.animationDuration = (Math.random() * 2 + 1.5) + 's';
+        document.body.appendChild(p);
+        setTimeout(() => p.remove(), 4000);
+      }, i * 40);
+    }
+  }
+
+  // Simple auto-solve using A* (for small grids)
+  function showSolution() {
+    if (isSolved()) return;
+    alert('Solving... (this may take a moment for larger grids)');
+    const solution = solvePuzzle([...tiles]);
+    if (!solution) { alert("Couldn't find solution quickly. Try a new game!"); return; }
+    solving = true;
+    if (!started) { started = true; timerInterval = setInterval(() => { seconds++; updateTimer(); }, 1000); }
+    let step = 0;
+    const interval = setInterval(() => {
+      if (step >= solution.length || !solving) { clearInterval(interval); return; }
+      const moveIdx = solution[step++];
+      const empty = tiles.indexOf(0);
+      [tiles[moveIdx], tiles[empty]] = [tiles[empty], tiles[moveIdx]];
+      moves++;
+      updateMoves();
+      renderBoard();
+      if (isSolved()) {
+        clearInterval(interval);
+        clearInterval(timerInterval);
+        setTimeout(showWin, 300);
+      }
+    }, 200);
+  }
+
+  function solvePuzzle(initial) {
+    // BFS for 3x3, limited for larger
+    if (size > 3) return null;
+    const goal = Array.from({length: size*size}, (_, i) => i === size*size-1 ? 0 : i+1);
+    const goalStr = goal.join(',');
+    const startStr = initial.join(',');
+    if (startStr === goalStr) return [];
+
+    const queue = [[initial, []]];
+    const visited = new Set([startStr]);
+
+    while (queue.length > 0) {
+      const [state, path] = queue.shift();
+      const empty = state.indexOf(0);
+      const row = Math.floor(empty / size), col = empty % size;
+      const neighbors = [];
+      if (row > 0) neighbors.push(empty - size);
+      if (row < size-1) neighbors.push(empty + size);
+      if (col > 0) neighbors.push(empty - 1);
+      if (col < size-1) neighbors.push(empty + 1);
+
+      for (const n of neighbors) {
+        const next = [...state];
+        [next[empty], next[n]] = [next[n], next[empty]];
+        const key = next.join(',');
+        if (key === goalStr) return [...path, n];
+        if (!visited.has(key)) {
+          visited.add(key);
+          queue.push([next, [...path, n]]);
+        }
+      }
+      if (visited.size > 200000) return null;
+    }
+    return null;
+  }
+
+  // Update best display
+  function updateBest() {
+    const key = `best_${size}`;
+    const b = bestScores[key];
+    document.getElementById('best').textContent = b || '—';
+  }
+
+  // Init
+  newGame();
+</script>
+</body>
+</html>
